@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from typing import List, Dict
 import pandas as pd
-import gurobipy
+from gurobipy import GurobiError
+from cvrp import CVRP
 from tdvrp import TDVRP
 
 
@@ -38,7 +39,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 async def get_locations():
     return locations_data
 
-@app.post("/tdvrp")
+@app.post("/solve")
 async def tdvrp(nDrones: str = Form(...), 
                 nTrucks: str = Form(...), 
                 drone_speed: str = Form(...), 
@@ -46,9 +47,11 @@ async def tdvrp(nDrones: str = Form(...),
                 drone_capacity: str = Form(...),
                 truck_capacity: str = Form(...),
                 drone_autonomy: str = Form(...),
-                truck_threshold: str = Form(...)):
+                truck_threshold: str = Form(...),
+                model: str = Form(...)):
     
     tdvrp = TDVRP()
+    
     df['demand'] = df['demand'].astype(int)
     demands = df['demand'].tolist()
     matrix_distance_truck = tdvrp.distance_matrix_truck(df)
@@ -60,86 +63,146 @@ async def tdvrp(nDrones: str = Form(...),
     nodes_list = [0] + customers_list
     list_vars = []
     dic_res = dict()
-    resultsTDVRP = tdvrp.TDVRP(dem=demands, 
-                               time_truck=matrix_time_truck, 
-                               customers=customers_list, 
-                               nodes=nodes_list, 
-                               nT=int(nTrucks),
-                               truck_capacity=int(truck_capacity),
-                               nD=int(nDrones),
-                               drone_capacity=int(drone_capacity),
-                               drone_endurance=int(drone_autonomy),
-                               time_drone=matrix_time_drone)
-    
-    model = resultsTDVRP[0]
-    xt = resultsTDVRP[1]
-    xd = resultsTDVRP[2]
-    list_vars.append(xt)
-    list_vars.append(xd)
-    dic_res[model] = list_vars
-
     numIter = 1
-    for mdl in dic_res:
-        vars = []
-        routesT = []
-        routesD= []
-        print("===================model==========:", mdl)
-        name = mdl.ModelName
-        vars = dic_res[mdl]
-        xt = vars[0]
-        xd = vars[1]
-        runTimeTot = 0
-        for i in range(1, numIter+1):
-            res = tdvrp.solving_model(mdl)
-            status = res[0]
-            runTime = res[1]
-            TravTime = res[2]
-            #TravTime = 2*sum(time_truck[0]) + 2*sum(time_drone[0])- savCost
-            runTimeTot = runTimeTot + runTime
-            runTimeAvg = runTimeTot/numIter
-            if TravTime ==0:
-                break
-            print("run time average TDVRP: ", runTimeAvg)
-            print("Travel time ", TravTime)
-            #print("Travel Time ", TravTime)
-            mdl.write("modelTDVRP2F.lp")
+    
+    if model == "CVRP":
+        cvrp = CVRP()
+
+        resultsCVRP = cvrp.CVRP(
+            df=df,
+            time_truck=matrix_time_truck,
+            customers=customers_list,
+            nodes=nodes_list,
+            nT=int(nTrucks),
+            truck_capacity=int(truck_capacity))
+        
+        model = resultsCVRP[0]
+        xt = resultsCVRP[1]
+        y = resultsCVRP[2]
+        dic_res[model] = (xt, y)
+
+        for mdl in dic_res:
+            vars = []
+            routesT = []
+            routesD= []
+            print("===================model==========:", mdl)
+            name = mdl.ModelName
+            vars = dic_res[mdl]
+            xt = vars[0]
+            y = vars[1]
+            runTimeTot = 0
+            for i in range(1, numIter+1):
+                res = cvrp.solving_model(mdl)
+                status = res[0]
+                runTime = res[1]
+                TravTime = res[2]
+                runTimeTot = runTimeTot + runTime
+                runTimeAvg = runTimeTot/numIter
+            print("run time average CVRP: ", runTimeAvg)
+            print("Travel Time ", TravTime)
             if status == 2:
-                mdl.write("modelTDVRP2F.lp")
-                all_vars = mdl.getVars()
-                values = mdl.getAttr("X", all_vars)
-                names = mdl.getAttr("VarName", all_vars)
-#                 for name, val in zip(names, values):
-#                     print(f"{name} = {val}")
-#                         plot_solution_WV(nodes,mdl, df, xt, xd)
+                mdl.write("modelCVRP2F.lp")
+                #plot_solution_WV(nodes,mdl, data, xt, xd)
                 vals_t = mdl.getAttr('X', xt)
                 arcs_t = [(i,j) for i, j in vals_t.keys() if vals_t[i, j] > 0.99]
-                routesT = tdvrp.extract_routes(arcs_t)
-                vals_d = mdl.getAttr('X', xd)
-                arcs_d = [(i,j) for i, j in vals_d.keys() if vals_d[i, j] > 0.99]
-                print("**************************arcsT********************************", arcs_t)
-                print("**************arcD ",arcs_d)
-                routesT = tdvrp.extract_routes(arcs_t)
-                routesD = tdvrp.extract_routes(arcs_d)
+            #print("**************************arcs_t********************************", arcs_t)
+                routesT = cvrp.extract_routes(arcs_t)
+                routesD = None
                 print("**************************routesT********************************", routesT)
-                print("*********************routesD", routesD)
             else:
                 try:
                     mdl.computeIIS()
-                    mdl.write('iismodelTDVRP2F.ilp')
-                    print('\nThe following constraints and variables are in the IIS:')
-                    for c in mdl.getConstrs():
-                        if c.IISConstr: print(f'\t{c.constrname}: {mdl.getRow(c)} {c.Sense} {c.RHS}')
-
-                    for v in mdl.getVars():
-                        if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
-                        if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
-                except gurobipy.GurobiError as e:
+                    mdl.write('iismodelCVRP2F.ilp')
+                    mdl.write("modelCVRP2F.lp")
+                except GurobiError as e:
                     if "Cannot compute IIS on a feasible model" in str(e):
                         print("Model is feasible, no IIS found.")
                     else:
                         raise e
+                    
+        return routesT, routesD
     
-    return routesT, routesD
+    elif model == "TDVRP":
+
+        resultsTDVRP = tdvrp.TDVRP(dem=demands, 
+                                time_truck=matrix_time_truck, 
+                                customers=customers_list, 
+                                nodes=nodes_list, 
+                                nT=int(nTrucks),
+                                truck_capacity=int(truck_capacity),
+                                nD=int(nDrones),
+                                drone_capacity=int(drone_capacity),
+                                drone_endurance=int(drone_autonomy),
+                                time_drone=matrix_time_drone)
+        
+        model = resultsTDVRP[0]
+        xt = resultsTDVRP[1]
+        xd = resultsTDVRP[2]
+        list_vars.append(xt)
+        list_vars.append(xd)
+        dic_res[model] = list_vars
+
+        for mdl in dic_res:
+            vars = []
+            routesT = []
+            routesD= []
+            print("===================model==========:", mdl)
+            name = mdl.ModelName
+            vars = dic_res[mdl]
+            xt = vars[0]
+            xd = vars[1]
+            runTimeTot = 0
+            for i in range(1, numIter+1):
+                res = tdvrp.solving_model(mdl)
+                status = res[0]
+                runTime = res[1]
+                TravTime = res[2]
+                #TravTime = 2*sum(time_truck[0]) + 2*sum(time_drone[0])- savCost
+                runTimeTot = runTimeTot + runTime
+                runTimeAvg = runTimeTot/numIter
+                if TravTime ==0:
+                    break
+                print("run time average TDVRP: ", runTimeAvg)
+                print("Travel time ", TravTime)
+                #print("Travel Time ", TravTime)
+                mdl.write("modelTDVRP2F.lp")
+                if status == 2:
+                    mdl.write("modelTDVRP2F.lp")
+                    all_vars = mdl.getVars()
+                    values = mdl.getAttr("X", all_vars)
+                    names = mdl.getAttr("VarName", all_vars)
+    #                 for name, val in zip(names, values):
+    #                     print(f"{name} = {val}")
+    #                         plot_solution_WV(nodes,mdl, df, xt, xd)
+                    vals_t = mdl.getAttr('X', xt)
+                    arcs_t = [(i,j) for i, j in vals_t.keys() if vals_t[i, j] > 0.99]
+                    routesT = tdvrp.extract_routes(arcs_t)
+                    vals_d = mdl.getAttr('X', xd)
+                    arcs_d = [(i,j) for i, j in vals_d.keys() if vals_d[i, j] > 0.99]
+                    print("**************************arcsT********************************", arcs_t)
+                    print("**************arcD ",arcs_d)
+                    routesT = tdvrp.extract_routes(arcs_t)
+                    routesD = tdvrp.extract_routes(arcs_d)
+                    print("**************************routesT********************************", routesT)
+                    print("*********************routesD", routesD)
+                else:
+                    try:
+                        mdl.computeIIS()
+                        mdl.write('iismodelTDVRP2F.ilp')
+                        print('\nThe following constraints and variables are in the IIS:')
+                        for c in mdl.getConstrs():
+                            if c.IISConstr: print(f'\t{c.constrname}: {mdl.getRow(c)} {c.Sense} {c.RHS}')
+
+                        for v in mdl.getVars():
+                            if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
+                            if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
+                    except GurobiError as e:
+                        if "Cannot compute IIS on a feasible model" in str(e):
+                            print("Model is feasible, no IIS found.")
+                        else:
+                            raise e
+        
+        return routesT, routesD
 
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8000, reload=True)

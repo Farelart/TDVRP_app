@@ -17,6 +17,12 @@
             <h1><span>tdvrp</span>app</h1>
             <!-- <h3>Model:</h3>
             <h3>Obj. f(n)</h3> -->
+            <form action="" id="modelSelectionForm">
+                <select name="model" id="modelDropdown">
+                    <option value="CVRP">CVRP</option>
+                    <option value="TDVRP">TDVRP</option>
+                </select>
+            </form>
         </nav>
         
         <section class="sidebar">
@@ -29,7 +35,8 @@
         <section class="model-variables">
             Model variables
 
-            <form method="post" action="/tdvrp">
+            <form method="post" action="/solve">
+                <input type="hidden" name="model" id="selectedModel">
                 <input type="text" placeholder="Nr. of Drones" name="nDrones">
                 <input type="text" placeholder="Nr. of Trucks" name="nTrucks">
                 <input type="text" placeholder="Drone's speed" name="drone_speed">
@@ -63,6 +70,14 @@
                 });
             }
         });
+
+        // JavaScript to handle form submission and model selection
+        document.getElementById('modelDropdown').addEventListener('change', function() {
+            document.getElementById('selectedModel').value = this.value;
+        });
+
+        // Set the initial value for the hidden input
+        document.getElementById('selectedModel').value = document.getElementById('modelDropdown').value;
     </script>
     <script>
         function initMap(locations = []) {
