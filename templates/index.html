@@ -80,6 +80,7 @@
         document.getElementById('selectedModel').value = document.getElementById('modelDropdown').value;
     </script>
     <script>
+        let locations = []
         function initMap(locations = []) {
             // Defining the geo coordinates of where the map will be located
             let myLatLng = {
@@ -97,6 +98,7 @@
 
             // creating the map
             let map = new google.maps.Map(document.getElementById("map"), mapOptions);
+            let directionsService = new google.maps.DirectionsService();
             let bounds = new google.maps.LatLngBounds();
             let depotLocation;
 
@@ -124,19 +126,20 @@
                 map.setCenter(myLatLng);
                 map.setZoom(16);
             }
+
         }
 
         async function fetchLocations() {
             try {
                 const response = await fetch('/locations');
-                const locations = await response.json();
+                locations = await response.json();
                 console.log('Fetched locations:', locations);
                 initMap(locations);
             } catch (error) {
                 console.error('Error fetching locations:', error);
             }
         }
-
+        
         // Fetch locations from the backend when the page loads
         window.onload = fetchLocations;
     </script>

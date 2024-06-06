@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import gurobipy as grb
-from gurobipy import Model, GRB, quicksum
+from gurobipy import Model, GRB, quicksum, GurobiError
 import pandas as pd
 import googlemaps
 from haversine import haversine, Unit
@@ -206,3 +206,99 @@ class TDVRP:
                 routes[l-1] = V
 
         return routes
+    
+
+    def final_solving(self, model, xt, xd, dic_res):
+        numIter = 1
+        for mdl in dic_res:
+            vars = []
+            routesT = []
+            routesD= []
+            print("===================model==========:", mdl)
+            name = mdl.ModelName
+            vars = dic_res[mdl]
+            xt = vars[0]
+            xd = vars[1]
+            runTimeTot = 0
+            for i in range(1, numIter+1):
+                res = self.solving_model(mdl)
+                status = res[0]
+                runTime = res[1]
+                TravTime = res[2]
+                #TravTime = 2*sum(time_truck[0]) + 2*sum(time_drone[0])- savCost
+                runTimeTot = runTimeTot + runTime
+                runTimeAvg = runTimeTot/numIter
+                if TravTime ==0:
+                    break
+                print("run time average TDVRP: ", runTimeAvg)
+                print("Travel time ", TravTime)
+                #print("Travel Time ", TravTime)
+                mdl.write("modelTDVRP2F.lp")
+                if status == 2:
+                    mdl.write("modelTDVRP2F.lp")
+                    all_vars = mdl.getVars()
+                    values = mdl.getAttr("X", all_vars)
+                    names = mdl.getAttr("VarName", all_vars)
+    #                 for name, val in zip(names, values):
+    #                     print(f"{name} = {val}")
+    #                         plot_solution_WV(nodes,mdl, df, xt, xd)
+                    vals_t = mdl.getAttr('X', xt)
+                    arcs_t = [(i,j) for i, j in vals_t.keys() if vals_t[i, j] > 0.99]
+                    routesT = self.extract_routes(arcs_t)
+                    vals_d = mdl.getAttr('X', xd)
+                    arcs_d = [(i,j) for i, j in vals_d.keys() if vals_d[i, j] > 0.99]
+                    print("**************************arcsT********************************", arcs_t)
+                    print("**************arcD ",arcs_d)
+                    routesT = self.extract_routes(arcs_t)
+                    routesD = self.extract_routes(arcs_d)
+                    print("**************************routesT********************************", routesT)
+                    print("*********************routesD", routesD)
+                else:
+                    try:
+                        mdl.computeIIS()
+                        mdl.write('iismodelTDVRP2F.ilp')
+                        print('\nThe following constraints and variables are in the IIS:')
+                        for c in mdl.getConstrs():
+                            if c.IISConstr: print(f'\t{c.constrname}: {mdl.getRow(c)} {c.Sense} {c.RHS}')
+
+                        for v in mdl.getVars():
+                            if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
+                            if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
+                    except GurobiError as e:
+                        if "Cannot compute IIS on a feasible model" in str(e):
+                            print("Model is feasible, no IIS found.")
+                        else:
+                            raise e
+                        
+        return routesT, routesD
+
+    
+    def reorder_routes(self, routes):
+        new_routes = []
+        for key, route in routes.items():
+            current_node = 0
+            new_route = [current_node]
+            
+            while True:
+                next_node = None
+                for pair in route:
+                    if pair[0] == current_node:
+                        next_node = pair[1]
+                        break
+                if next_node is None or next_node == 0:
+                    new_route.append(0)
+                    break
+                new_route.append(next_node)
+                current_node = next_node
+
+            new_routes.append(new_route)
+
+        return new_routes
+    
+
+    def replace_indexes_with_coordinates(self, ordered_routes, df):
+        routes_with_coordinates = []
+        for route in ordered_routes:
+            route_with_coords = [{"lat": df.iloc[index]['lat'], "lng": df.iloc[index]['long']} for index in route]
+            routes_with_coordinates.append(route_with_coords)
+        return routes_with_coordinates

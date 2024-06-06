@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import gurobipy as grb
-from gurobipy import Model, GRB, quicksum
+from gurobipy import Model, GRB, quicksum, GurobiError
 import pandas as pd
 import googlemaps
 import itertools
@@ -136,3 +136,77 @@ class CVRP:
                 routes[l-1] = V
 
         return routes
+    
+    def final_solving(self, model, xt, y, dic_res):
+        numIter = 1
+        for mdl in dic_res:
+            vars = []
+            routesT = []
+            routesD= []
+            print("===================model==========:", mdl)
+            name = mdl.ModelName
+            vars = dic_res[mdl]
+            xt = vars[0]
+            y = vars[1]
+            runTimeTot = 0
+            for i in range(1, numIter+1):
+                res = self.solving_model(mdl)
+                status = res[0]
+                runTime = res[1]
+                TravTime = res[2]
+                runTimeTot = runTimeTot + runTime
+                runTimeAvg = runTimeTot/numIter
+            print("run time average CVRP: ", runTimeAvg)
+            print("Travel Time ", TravTime)
+            if status == 2:
+                mdl.write("modelCVRP2F.lp")
+                #plot_solution_WV(nodes,mdl, data, xt, xd)
+                vals_t = mdl.getAttr('X', xt)
+                arcs_t = [(i,j) for i, j in vals_t.keys() if vals_t[i, j] > 0.99]
+            #print("**************************arcs_t********************************", arcs_t)
+                routesT = self.extract_routes(arcs_t)
+                routesD = None
+                print("**************************routesT********************************", routesT)
+            else:
+                try:
+                    mdl.computeIIS()
+                    mdl.write('iismodelCVRP2F.ilp')
+                    mdl.write("modelCVRP2F.lp")
+                except GurobiError as e:
+                    if "Cannot compute IIS on a feasible model" in str(e):
+                        print("Model is feasible, no IIS found.")
+                    else:
+                        raise e
+        
+        return routesT, routesD
+    
+
+    def reorder_routes(self, routes):
+        new_routes = []
+        for key, route in routes.items():
+            current_node = 0
+            new_route = [current_node]
+            
+            while True:
+                next_node = None
+                for pair in route:
+                    if pair[0] == current_node:
+                        next_node = pair[1]
+                        break
+                if next_node is None or next_node == 0:
+                    new_route.append(0)
+                    break
+                new_route.append(next_node)
+                current_node = next_node
+
+            new_routes.append(new_route)
+
+        return new_routes
+    
+
+    def replace_indexes_with_coordinates(self, ordered_routes, df):
+        routes_with_coordinates = []
+        for route in ordered_routes:
+            route_with_coords = [{"lat": df.iloc[index]['lat'], "lng": df.iloc[index]['long']} for index in route]
+            routes_with_coordinates.append(route_with_coords)
+        return routes_with_coordinates
