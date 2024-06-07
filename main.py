@@ -96,8 +96,11 @@ async def solve(nDrones: str = Form(...),
         print(routes_with_coordinates_T)
         print(routes_with_coordinates_D)
 
-        return routes_with_coordinates_T, routes_with_coordinates_D
-        """ return JSONResponse(content={"status": "success"}) """
+        return JSONResponse(content={
+                "routes_with_coordinates_T": routes_with_coordinates_T,
+                "routes_with_coordinates_D": routes_with_coordinates_D
+            })
+        #return JSONResponse(content={"status": "success"})
     
     elif model == "TDVRP":
 
@@ -130,7 +133,10 @@ async def solve(nDrones: str = Form(...),
         print(routes_with_coordinates_T)
         print(routes_with_coordinates_D)
         
-        return routes_with_coordinates_T, routes_with_coordinates_D
+        return JSONResponse(content={
+                "routes_with_coordinates_T": routes_with_coordinates_T,
+                "routes_with_coordinates_D": routes_with_coordinates_D
+            })
         """ return JSONResponse(content={"status": "success"}) """
 
 
