@@ -49,7 +49,6 @@ async def solve(nDrones: str = Form(...),
                 drone_capacity: str = Form(...),
                 truck_capacity: str = Form(...),
                 drone_autonomy: str = Form(...),
-                truck_threshold: str = Form(...),
                 model: str = Form(...)):
     
     tdvrp = TDVRP()
