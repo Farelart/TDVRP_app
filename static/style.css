@@ -41,12 +41,28 @@
     border-radius: 2rem;
     display: flex;
     align-items: center;
+    justify-content: space-between;
 }
+
 
 h1 {
     font-size: 1rem;
     margin-left: 1rem;
     font-family: var(--font-family);
+}
+
+.model_selection {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 0.85rem;
+    color:  black;
+    margin-right: 1rem;
+}
+
+#modelDropdown {
+    width: 5rem;
+    border-radius: 0.5rem;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    text-align: center;
 }
 
 .logo {
