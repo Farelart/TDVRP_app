@@ -14,7 +14,7 @@
         <div id="map"></div>
         
         <nav class="nav">
-            <h1><span>tdvrp</span>app</h1>
+            <h1><span class="logo">tdvrp</span>app</h1>
             <!-- <h3>Model:</h3>
             <h3>Obj. f(n)</h3> -->
             <form action="" id="modelSelectionForm">
@@ -32,8 +32,11 @@
         </section>
 
         <section class="model-variables">
-            <i class='bx bx-chevron-left' id="arrow-left"></i>
-            <p>Model variables</p>
+            <i class='bx bx-chevron-left' id="arrow-left-model"></i>
+            <div>
+                <p class="p-variables"><i class='bx bxs-cog' ></i>Model variables</p>
+                
+            </div>
 
             <form method="post" action="/solve" class="variables-form">
                 <input type="hidden" name="model" id="selectedModel" >
@@ -70,7 +73,36 @@
         </section>
 
         <section class="results">
-            Results
+            <p class="p-results"><i class='bx bxs-info-circle'></i></i>Results</p>
+            <!-- <div class="results-summary">
+                <span class="table">Objective:</span>
+                <span class="objective"></span>
+                <span class="table">Solving time:</span>
+                <span class="runTime"></span>
+                <span class="table">Trucks load:</span>
+                <span class="truck_load"></span>
+                <span class="table">Drones load:</span>
+                <span class="drone_load"></span>
+            </div> -->
+            <table class="results-summary">
+                <tr>
+                    <th>Objective:</th>
+                    <td class="objective"></td>
+                </tr>
+                <tr>
+                    <th>Solving time:</th>
+                    <td class="runTime"></td>
+                </tr>
+                <tr>
+                    <th>Trucks load:</th>
+                    <td class="truck_load"></td>
+                </tr>
+                <tr>
+                    <th>Drones load:</th>
+                    <td class="drone_load"></td>
+                </tr>
+            </table>
+            
         </section>        
     </main>
     <script defer
@@ -80,6 +112,12 @@
         document.getElementById('side-right').addEventListener('click', function() {
             var sidebar = document.querySelector('.sidebar');
             sidebar.classList.toggle('expanded');
+        });
+        document.getElementById('arrow-left-model').addEventListener('click', function() {
+            var model_variables = document.querySelector('.model-variables');
+            model_variables.classList.toggle('model_expanded');
+            var results = document.querySelector('.results');
+            results.classList.toggle('model_expanded');
         });
 
         let myDropzone = new Dropzone("#my-awesome-dropzone", {
@@ -235,16 +273,40 @@
                 console.log(data);
                 routesWithCoordinatesT = data.routes_with_coordinates_T;
                 routesWithCoordinatesD = data.routes_with_coordinates_D;
+                travTime = data.travel_time;
+                runTime = data.running_time;
+                truck_load = data.truck_load;
+                drone_load = data.drone_load;
+                customers = data.n;
                 console.log('Routes with coordinates T:', routesWithCoordinatesT);
                 console.log('Routes with coordinates D:', routesWithCoordinatesD);
-                let array = [
-                    [1,2,3,4,4,5],
-                    [56, 77]
-                ];
-                console.log(array);
                 // Handle the routes_with_coordinates_T and routes_with_coordinates_D to update the map
                 calcRoute(map, routesWithCoordinatesT);
                 lineRoute(map, routesWithCoordinatesD);
+                let objective = document.querySelector('.objective');
+                let solving_time = document.querySelector('.runTime');
+                let load_truck = document.querySelector('.truck_load');
+                let load_drone = document.querySelector('.drone_load');
+                if (objective) {
+                    objective.textContent = (travTime / 60).toFixed(2) + " min";
+                } else {
+                    console.error('Objective element not found');
+                }
+                if (solving_time) {
+                    solving_time.textContent = runTime.toFixed(2) + " s";
+                } else {
+                    console.error('solving_time element not found');
+                }
+                if (load_truck) {
+                    load_truck.textContent = truck_load + "|" + (customers -1);
+                } else {
+                    console.error('load_truck element not found');
+                }
+                if (load_drone) {
+                    load_drone.textContent = drone_load + "|" + (customers-1);
+                } else {
+                    console.error('load_drone element not found');
+                }
             })
             .catch(error => console.log('Error:', error));
         });

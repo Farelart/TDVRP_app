@@ -64,6 +64,10 @@ async def solve(nDrones: str = Form(...),
     nodes_list = [0] + customers_list
     list_vars = []
     dic_res = dict()
+    travTime = None
+    runTime = None
+    truck_load = None
+    drone_load = None
     
     global routes_with_coordinates_T
     global routes_with_coordinates_D
@@ -84,7 +88,7 @@ async def solve(nDrones: str = Form(...),
         y = resultsCVRP[2]
         dic_res[model] = (xt, y)
 
-        routesT, routesD = cvrp.final_solving(model=model, xt=xt, y=y, dic_res=dic_res)
+        routesT, routesD, travTime, runTime = cvrp.final_solving(model=model, xt=xt, y=y, dic_res=dic_res)
 
         orderedRoutesT = cvrp.reorder_routes(routesT)
         orderedRoutesD = cvrp.reorder_routes(routesD) if routesD else None
@@ -92,12 +96,20 @@ async def solve(nDrones: str = Form(...),
         routes_with_coordinates_T = cvrp.replace_indexes_with_coordinates(orderedRoutesT, df)
         routes_with_coordinates_D = cvrp.replace_indexes_with_coordinates(orderedRoutesD, df) if orderedRoutesD else None
 
+        truck_load = sum(len(sublist) - 2 for sublist in orderedRoutesT)
+
+
         print(routes_with_coordinates_T)
         print(routes_with_coordinates_D)
 
         return JSONResponse(content={
                 "routes_with_coordinates_T": routes_with_coordinates_T,
-                "routes_with_coordinates_D": routes_with_coordinates_D
+                "routes_with_coordinates_D": routes_with_coordinates_D,
+                "running_time": runTime,
+                "travel_time": travTime,
+                "truck_load": truck_load,
+                "drone_load": drone_load,
+                "n": n
             })
         #return JSONResponse(content={"status": "success"})
     
@@ -121,20 +133,30 @@ async def solve(nDrones: str = Form(...),
         list_vars.append(xd)
         dic_res[model] = list_vars
 
-        routesT, routesD = tdvrp.final_solving(model=model, xt=xt, xd=xd, dic_res=dic_res)
+        routesT, routesD, travTime, runTime = tdvrp.final_solving(model=model, xt=xt, xd=xd, dic_res=dic_res)
                         
         orderedRoutesT = tdvrp.reorder_routes(routesT)
         orderedRoutesD = tdvrp.reorder_routes(routesD) if routesD else None
+        print(orderedRoutesT)
 
         routes_with_coordinates_T = tdvrp.replace_indexes_with_coordinates(orderedRoutesT, df)
         routes_with_coordinates_D = tdvrp.replace_indexes_with_coordinates(orderedRoutesD, df) if orderedRoutesD else None
+
+        truck_load = sum(len(sublist) - 2 for sublist in orderedRoutesT)
+        drone_load = sum(len(sublist) - 2 for sublist in orderedRoutesD)
+ 
 
         print(routes_with_coordinates_T)
         print(routes_with_coordinates_D)
         
         return JSONResponse(content={
                 "routes_with_coordinates_T": routes_with_coordinates_T,
-                "routes_with_coordinates_D": routes_with_coordinates_D
+                "routes_with_coordinates_D": routes_with_coordinates_D,
+                "running_time": runTime,
+                "travel_time": travTime,
+                "truck_load": truck_load,
+                "drone_load": drone_load,
+                "n": n
             })
         """ return JSONResponse(content={"status": "success"}) """
 

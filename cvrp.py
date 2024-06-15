@@ -178,7 +178,7 @@ class CVRP:
                     else:
                         raise e
         
-        return routesT, routesD
+        return routesT, routesD, TravTime, runTimeAvg
     
 
     def reorder_routes(self, routes):
